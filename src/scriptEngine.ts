@@ -7,13 +7,10 @@ const str = (v: unknown, fallback: string) => typeof v === 'string' ? v : fallba
 const vector = (value: unknown, fallback: [number, number, number], label: string): [number, number, number] => {
   let values: unknown[] | null = null
   if (Array.isArray(value)) values = value
-  else if (value && typeof value === 'object') {
-    const v = value as Record<string, unknown>
-    values = [v.x, v.y, v.z]
-  }
+  else if (value && typeof value === 'object') { const v = value as Record<string, unknown>; values = [v.x, v.y, v.z] }
   if (!values || values.length !== 3) return [...fallback]
   const result = values.map((v, i) => num(v, fallback[i])) as [number, number, number]
-  if (result.some(v => Math.abs(v) > 10000)) throw new Error(`${label}: valores devem ficar entre -10.000 e 10.000.`)
+  if (result.some(v => Math.abs(v) > 10000)) throw new Error(label + ': valores devem ficar entre -10.000 e 10.000.')
   return result
 }
 const validColor = (value: unknown, fallback: string) => {
@@ -23,11 +20,18 @@ const validColor = (value: unknown, fallback: string) => {
 }
 const clamp01 = (value: unknown, fallback: number, label: string) => {
   const n = num(value, fallback)
-  if (n < 0 || n > 1) throw new Error(`${label} deve estar entre 0 e 1.`)
+  if (n < 0 || n > 1) throw new Error(label + ' deve estar entre 0 e 1.')
   return n
 }
+const safeMath: Record<string, (...args: number[]) => number> = {
+  abs: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
+  min: Math.min, max: Math.max, sin: Math.sin, cos: Math.cos, tan: Math.tan,
+  sqrt: Math.sqrt, pow: Math.pow,
+}
+const truthy = (v: unknown) => Boolean(v)
 
-// DZ API v0.2 — DSL segura: sem eval, Function, DOM, rede, imports ou acesso ao navegador.
+// DZ API v0.3 — DSL segura com repetição limitada, matemática e condições.
+// JavaScript arbitrário, DOM, rede, imports, eval e Function continuam bloqueados.
 export function runStudioScript(source: string, existing: SceneObject[] = []): SceneObject[] {
   if (source.length > 200_000) throw new Error('Script excede o limite de 200 KB.')
   const ast = parse(source, { sourceType: 'module' })
@@ -35,64 +39,131 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
   const vars = new Map<string, unknown>()
   const staged = existing.map(o => ({ ...o, position: [...o.position] as [number,number,number], rotation: [...o.rotation] as [number,number,number], scale: [...o.scale] as [number,number,number], dimensions: [...o.dimensions] as [number,number,number] }))
   const created = new Set<string>()
+  let iterations = 0
+  let executedStatements = 0
+
   const read = (node: any): any => {
     if (!node) return undefined
-    if (node.type === 'StringLiteral' || node.type === 'NumericLiteral' || node.type === 'BooleanLiteral') return node.value
-    if (node.type === 'NullLiteral') return null
-    if (node.type === 'Identifier') {
-      if (vars.has(node.name)) return vars.get(node.name)
-      throw new Error(`Identificador não permitido: ${node.name}`)
-    }
-    if (node.type === 'ObjectExpression') {
-      const out: Record<string, unknown> = {}
-      for (const p of node.properties) {
-        if (p.type !== 'ObjectProperty' || p.computed || p.method || p.shorthand) throw new Error('Propriedade de objeto não suportada.')
-        const key = p.key.name ?? p.key.value
-        if (['__proto__', 'prototype', 'constructor'].includes(String(key))) throw new Error('Nome de propriedade não permitido.')
-        out[String(key)] = read(p.value)
+    switch (node.type) {
+      case 'StringLiteral': case 'NumericLiteral': case 'BooleanLiteral': return node.value
+      case 'NullLiteral': return null
+      case 'Identifier':
+        if (vars.has(node.name)) return vars.get(node.name)
+        throw new Error('Identificador não permitido: ' + node.name)
+      case 'ObjectExpression': {
+        const out: Record<string, unknown> = {}
+        for (const p of node.properties) {
+          if (p.type !== 'ObjectProperty' || p.computed || p.method || p.shorthand) throw new Error('Propriedade de objeto não suportada.')
+          const key = p.key.name ?? p.key.value
+          if (['__proto__', 'prototype', 'constructor'].includes(String(key))) throw new Error('Nome de propriedade não permitido.')
+          out[String(key)] = read(p.value)
+        }
+        return out
       }
-      return out
+      case 'ArrayExpression': return node.elements.map(read)
+      case 'UnaryExpression': {
+        const value = read(node.argument)
+        if (node.operator === '-') return -num(value, 0)
+        if (node.operator === '+') return num(value, 0)
+        if (node.operator === '!') return !truthy(value)
+        throw new Error('Operador unário não permitido.')
+      }
+      case 'BinaryExpression': {
+        const a = read(node.left), b = read(node.right)
+        switch (node.operator) {
+          case '+': return typeof a === 'string' || typeof b === 'string' ? String(a) + String(b) : num(a, 0) + num(b, 0)
+          case '-': return num(a, 0) - num(b, 0)
+          case '*': return num(a, 0) * num(b, 0)
+          case '/': if (num(b, 0) === 0) throw new Error('Divisão por zero.'); return num(a, 0) / num(b, 0)
+          case '%': if (num(b, 0) === 0) throw new Error('Divisão por zero.'); return num(a, 0) % num(b, 0)
+          case '**': return num(a, 0) ** num(b, 0)
+          case '===': return a === b
+          case '!==': return a !== b
+          case '==': return a == b
+          case '!=': return a != b
+          case '<': return a < b
+          case '<=': return a <= b
+          case '>': return a > b
+          case '>=': return a >= b
+          default: throw new Error('Operador não permitido: ' + node.operator)
+        }
+      }
+      case 'LogicalExpression': {
+        const left = read(node.left)
+        if (node.operator === '&&') return truthy(left) ? read(node.right) : left
+        if (node.operator === '||') return truthy(left) ? left : read(node.right)
+        if (node.operator === '??') return left ?? read(node.right)
+        throw new Error('Operador lógico não permitido.')
+      }
+      case 'ConditionalExpression': return truthy(read(node.test)) ? read(node.consequent) : read(node.alternate)
+      case 'TemplateLiteral': {
+        let result = ''
+        node.quasis.forEach((q: any, i: number) => { result += q.value.cooked ?? q.value.raw; if (node.expressions[i]) result += String(read(node.expressions[i])) })
+        return result
+      }
+      case 'MemberExpression': {
+        if (node.computed) {
+          const target = read(node.object), key = read(node.property)
+          if (Array.isArray(target) && Number.isInteger(key) && key >= 0 && key < target.length) return target[key]
+          throw new Error('Acesso a propriedade não permitido.')
+        }
+        if (node.object.type === 'Identifier' && node.object.name === 'Math' && node.property.type === 'Identifier' && node.property.name === 'PI') return Math.PI
+        throw new Error('Acesso a propriedades não permitido, exceto Math.PI e índices de arrays.')
+      }
+      case 'CallExpression': {
+        const callee = node.callee
+        if (callee.type === 'MemberExpression' && !callee.computed && callee.object.type === 'Identifier' && callee.object.name === 'Math' && callee.property.type === 'Identifier') {
+          const fn = safeMath[callee.property.name]
+          if (!fn) throw new Error('Função Math não permitida: ' + callee.property.name)
+          const result = fn(...node.arguments.map((a: any) => num(read(a), 0)))
+          if (!Number.isFinite(result)) throw new Error('A operação matemática produziu um valor inválido.')
+          return result
+        }
+        return call(node)
+      }
+      default: throw new Error('Expressão não permitida: ' + node.type)
     }
-    if (node.type === 'ArrayExpression') return node.elements.map(read)
-    if (node.type === 'UnaryExpression' && (node.operator === '-' || node.operator === '+')) return (node.operator === '-' ? -1 : 1) * num(read(node.argument), 0)
-    throw new Error(`Expressão não permitida: ${node.type}`)
   }
+
   const getObject = (value: unknown): SceneObject => {
     if (!value || typeof value !== 'object' || !('id' in value)) throw new Error('A função espera um objeto criado pela DZ API.')
     const object = value as SceneObject
     if (!created.has(object.id)) throw new Error('O script só pode modificar objetos criados na execução atual.')
     return object
   }
+
   const call = (node: any): unknown => {
     if (node.type !== 'CallExpression' || node.optional || node.arguments.some((a: any) => a.type === 'SpreadElement')) throw new Error('Chamada de função inválida.')
     const callee = node.callee
-    if (callee.type !== 'MemberExpression' || callee.computed || callee.object.type !== 'Identifier' || callee.object.name !== 'DZ' || callee.property.type !== 'Identifier') {
-      throw new Error('Apenas chamadas diretas DZ.<função>() são permitidas.')
-    }
+    if (callee.type !== 'MemberExpression' || callee.computed || callee.object.type !== 'Identifier' || callee.object.name !== 'DZ' || callee.property.type !== 'Identifier') throw new Error('Apenas chamadas diretas DZ.<função>() são permitidas.')
     const method = callee.property.name
     const args = node.arguments.map(read)
-    if (method === 'createCube' || method === 'createBox' || method === 'createSphere' || method === 'createCylinder' || method === 'createCone' || method === 'createTorus' || method === 'createPlane') {
+    if (['createCube','createBox','createSphere','createCylinder','createCone','createTorus','createPlane'].includes(method)) {
       const requested = method === 'createCube' ? 'box' : method.slice(6).toLowerCase()
       const kind = requested as PrimitiveKind
-      if (!primitiveKinds.includes(kind)) throw new Error(`Geometria não suportada: ${method}. Disponíveis: createCube, createBox, createSphere, createCylinder, createCone, createTorus e createPlane.`)
+      if (!primitiveKinds.includes(kind)) throw new Error('Geometria não suportada: ' + method)
       const p = (args[0] ?? {}) as Record<string, unknown>
       const radius = num(p.radius, 0.5)
-      const dimensions: [number, number, number] = [
-        num(p.width, radius * 2),
-        num(p.height, kind === 'sphere' ? radius * 2 : 1),
-        num(p.depth, num(p.width, radius * 2)),
-      ]
+      const dimensions: [number,number,number] = [num(p.width, radius * 2), num(p.height, kind === 'sphere' ? radius * 2 : 1), num(p.depth, num(p.width, radius * 2))]
       if (dimensions.some(n => n <= 0 || n > 10000)) throw new Error('Dimensões devem ser maiores que zero e menores que 10.000.')
+      const geometryOptions = {
+        radiusTop: num(p.radiusTop, radius), radiusBottom: num(p.radiusBottom, radius),
+        radialSegments: Math.round(num(p.radialSegments, 32)),
+        tubularSegments: Math.round(num(p.tubularSegments, 48)),
+        tube: num(p.tube, Math.max(0.02, radius * 0.12)),
+        widthSegments: Math.round(num(p.widthSegments, 32)),
+        heightSegments: Math.round(num(p.heightSegments, 24)),
+      }
+      for (const entry of Object.entries(geometryOptions)) {
+        if (!Number.isFinite(entry[1]) || entry[1] <= 0 || entry[1] > 256) throw new Error(entry[0] + ' deve estar entre 1 e 256.')
+      }
       const object: SceneObject = {
-        id: crypto.randomUUID(), name: str(p.name, `Objeto ${created.size + 1}`).slice(0, 100), kind,
-        position: vector(p.position, [0,0,0], 'Posição'),
-        rotation: vector(p.rotation, [0,0,0], 'Rotação'),
-        scale: vector(p.scale, [1,1,1], 'Escala'),
-        color: validColor(p.color, '#2388ff'), visible: p.visible !== false, dimensions,
-        roughness: clamp01(p.roughness, 0.48, 'Rugosidade'),
-        metalness: clamp01(p.metalness, 0.18, 'Metallicidade'),
-        opacity: clamp01(p.opacity, 1, 'Opacidade'),
-        transparent: p.transparent === true || num(p.opacity, 1) < 1,
+        id: crypto.randomUUID(), name: str(p.name, 'Objeto ' + (created.size + 1)).slice(0,100), kind,
+        position: vector(p.position,[0,0,0],'Posição'), rotation: vector(p.rotation,[0,0,0],'Rotação'), scale: vector(p.scale,[1,1,1],'Escala'),
+        color: validColor(p.color,'#2388ff'), visible: p.visible !== false, dimensions,
+        geometryOptions,
+        roughness: clamp01(p.roughness,0.48,'Rugosidade'), metalness: clamp01(p.metalness,0.18,'Metallicidade'),
+        opacity: clamp01(p.opacity,1,'Opacidade'), transparent: p.transparent === true || num(p.opacity,1) < 1,
         wireframe: p.wireframe === true,
       }
       if (object.scale.some(n => n === 0)) throw new Error('A escala não pode conter zero.')
@@ -105,28 +176,28 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
       if (!staged.some(o => o.id === object.id)) staged.push(object)
       return object
     }
-    if (method === 'setPosition' || method === 'setRotation' || method === 'setScale') {
+    if (['setPosition','setRotation','setScale'].includes(method)) {
       const object = getObject(args[0])
       const key = method === 'setPosition' ? 'position' : method === 'setRotation' ? 'rotation' : 'scale'
       const fallback: [number,number,number] = key === 'scale' ? [1,1,1] : [0,0,0]
       const value = args.length === 2 ? args[1] : args.slice(1)
-      const next = vector(value, fallback, key)
+      const next = vector(value,fallback,key)
       if (key === 'scale' && next.some(n => n === 0)) throw new Error('A escala não pode conter zero.')
       object[key] = next
       return object
     }
-    if (method === 'translate' || method === 'rotate' || method === 'scaleBy') {
+    if (['translate','rotate','scaleBy'].includes(method)) {
       const object = getObject(args[0])
       const key = method === 'translate' ? 'position' : method === 'rotate' ? 'rotation' : 'scale'
-      const delta = vector(args.length === 2 ? args[1] : args.slice(1), [0,0,0], method)
-      const next = object[key].map((v, i) => method === 'scaleBy' ? v * (delta[i] || 1) : v + delta[i]) as [number,number,number]
+      const delta = vector(args.length === 2 ? args[1] : args.slice(1),[0,0,0],method)
+      const next = object[key].map((v,i) => method === 'scaleBy' ? v * (delta[i] || 1) : v + delta[i]) as [number,number,number]
       if (next.some(n => !Number.isFinite(n) || Math.abs(n) > 10000) || (key === 'scale' && next.some(n => n === 0))) throw new Error('Transformação fora dos limites permitidos.')
       object[key] = next
       return object
     }
     if (method === 'setDimensions') {
       const object = getObject(args[0])
-      const next = vector(args.length === 2 ? args[1] : args.slice(1), object.dimensions, 'Dimensões')
+      const next = vector(args.length === 2 ? args[1] : args.slice(1),object.dimensions,'Dimensões')
       if (next.some(n => n <= 0)) throw new Error('Dimensões devem ser maiores que zero.')
       object.dimensions = next
       return object
@@ -134,48 +205,97 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
     if (method === 'setName') {
       const object = getObject(args[0])
       if (typeof args[1] !== 'string' || !args[1].trim()) throw new Error('O nome do objeto não pode ficar vazio.')
-      object.name = args[1].slice(0, 100)
-      return object
+      object.name = args[1].slice(0,100); return object
     }
     if (method === 'setVisible') {
       const object = getObject(args[0])
       if (typeof args[1] !== 'boolean') throw new Error('setVisible espera true ou false.')
-      object.visible = args[1]
-      return object
+      object.visible = args[1]; return object
     }
     if (method === 'setMaterial') {
-      const object = getObject(args[0])
-      const options = (args[1] ?? {}) as Record<string, unknown>
-      object.color = validColor(options.color, object.color)
-      object.roughness = clamp01(options.roughness, object.roughness ?? 0.48, 'Rugosidade')
-      object.metalness = clamp01(options.metalness, object.metalness ?? 0.18, 'Metallicidade')
-      object.opacity = clamp01(options.opacity, object.opacity ?? 1, 'Opacidade')
+      const object = getObject(args[0]), options = (args[1] ?? {}) as Record<string,unknown>
+      object.color = validColor(options.color,object.color)
+      object.roughness = clamp01(options.roughness,object.roughness ?? .48,'Rugosidade')
+      object.metalness = clamp01(options.metalness,object.metalness ?? .18,'Metallicidade')
+      object.opacity = clamp01(options.opacity,object.opacity ?? 1,'Opacidade')
       object.transparent = options.transparent === undefined ? object.opacity < 1 : options.transparent === true
       object.wireframe = options.wireframe === undefined ? object.wireframe ?? false : options.wireframe === true
       return object
     }
     if (method === 'removeObject') {
-      const object = getObject(args[0])
-      const index = staged.findIndex(o => o.id === object.id)
-      if (index >= 0) staged.splice(index, 1)
+      const object = getObject(args[0]), index = staged.findIndex(o => o.id === object.id)
+      if (index >= 0) staged.splice(index,1)
       return null
     }
-    throw new Error(`Função DZ não reconhecida: ${method}`)
+    throw new Error('Função DZ não reconhecida: ' + method)
   }
-  for (const statement of ast.program.body) {
-    if (statement.type === 'VariableDeclaration') {
-      if (statement.kind === 'var') throw new Error('Use const ou let.')
-      for (const declaration of statement.declarations) {
-        if (declaration.id.type !== 'Identifier' || !declaration.init) throw new Error('Declaração de variável inválida.')
-        if (vars.has(declaration.id.name)) throw new Error(`Variável duplicada: ${declaration.id.name}`)
-        const init = declaration.init.type === 'CallExpression' ? call(declaration.init) : read(declaration.init)
-        vars.set(declaration.id.name, init)
+
+  const update = (node: any) => {
+    if (node.type === 'UpdateExpression' && node.argument.type === 'Identifier') {
+      const name = node.argument.name
+      if (!vars.has(name)) throw new Error('Variável não declarada: ' + name)
+      const old = num(vars.get(name),0), next = old + (node.operator === '++' ? 1 : node.operator === '--' ? -1 : 0)
+      if (!['++','--'].includes(node.operator)) throw new Error('Atualização não permitida.')
+      vars.set(name,next); return node.prefix ? next : old
+    }
+    if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') {
+      const name = node.left.name
+      if (!vars.has(name)) throw new Error('Variável não declarada: ' + name)
+      const old = vars.get(name), right = read(node.right)
+      let next: any
+      if (node.operator === '=') next = right
+      else if (node.operator === '+=') next = typeof old === 'string' ? String(old) + String(right) : num(old,0) + num(right,0)
+      else if (node.operator === '-=') next = num(old,0) - num(right,0)
+      else if (node.operator === '*=') next = num(old,0) * num(right,0)
+      else if (node.operator === '/=') { if (num(right,0) === 0) throw new Error('Divisão por zero.'); next = num(old,0) / num(right,0) }
+      else throw new Error('Atribuição não permitida.')
+      vars.set(name,next); return next
+    }
+    throw new Error('Atualização de variável inválida.')
+  }
+
+  const execute = (statement: any): void => {
+    executedStatements++
+    if (executedStatements > 50000) throw new Error('Limite de 50.000 instruções executadas atingido.')
+    switch (statement.type) {
+      case 'VariableDeclaration':
+        if (statement.kind === 'var') throw new Error('Use const ou let.')
+        for (const declaration of statement.declarations) {
+          if (declaration.id.type !== 'Identifier' || !declaration.init) throw new Error('Declaração de variável inválida.')
+          if (vars.has(declaration.id.name)) throw new Error('Variável duplicada: ' + declaration.id.name)
+          vars.set(declaration.id.name, read(declaration.init))
+        }
+        return
+      case 'ExpressionStatement':
+        if (statement.expression.type === 'CallExpression') call(statement.expression)
+        else if (['UpdateExpression','AssignmentExpression'].includes(statement.expression.type)) update(statement.expression)
+        else read(statement.expression)
+        return
+      case 'BlockStatement':
+        for (const child of statement.body) execute(child)
+        return
+      case 'IfStatement':
+        execute(truthy(read(statement.test)) ? statement.consequent : statement.alternate ?? { type: 'EmptyStatement' })
+        return
+      case 'ForStatement': {
+        if (statement.init) {
+          if (statement.init.type === 'VariableDeclaration') execute(statement.init)
+          else if (statement.init.type === 'AssignmentExpression') update(statement.init)
+          else throw new Error('Inicialização de for não permitida.')
+        }
+        let local = 0
+        while (!statement.test || truthy(read(statement.test))) {
+          local++; iterations++
+          if (local > 1000 || iterations > 10000) throw new Error('Limite de repetição excedido: máximo de 1.000 ciclos por loop e 10.000 no total.')
+          execute(statement.body)
+          if (statement.update) update(statement.update)
+        }
+        return
       }
-    } else if (statement.type === 'ExpressionStatement' && statement.expression.type === 'CallExpression') {
-      call(statement.expression)
-    } else {
-      throw new Error(`Comando não permitido: ${statement.type}`)
+      case 'EmptyStatement': return
+      default: throw new Error('Comando não permitido: ' + statement.type)
     }
   }
+  for (const statement of ast.program.body) execute(statement)
   return staged
 }
