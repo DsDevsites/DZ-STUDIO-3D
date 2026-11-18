@@ -59,7 +59,7 @@ function App() {
   const setScript = useStudio(s => s.setScript)
   const output = useStudio(s => s.output)
   const setOutput = useStudio(s => s.setOutput)
-  const addObjects = useStudio(s => s.addObjects)
+  const replaceScene = useStudio(s => s.replaceScene)
   const select = useStudio(s => s.select)
   const updateObject = useStudio(s => s.updateObject)
   const removeObject = useStudio(s => s.removeObject)
@@ -77,9 +77,9 @@ function App() {
 
   const run = () => {
     try {
-      const result = runStudioScript(script, objects)
-      addObjects(result)
-      setOutput(`✓ Script executado. Cena atualizada com ${result.length} objetos.`)
+      const result = runStudioScript(script, [])
+      replaceScene(result)
+      setOutput(`✓ Script executado. Cena reconstruída com ${result.length} objetos.`)
       setActiveTab('console')
     } catch (error) {
       setOutput(`Erro: ${error instanceof Error ? error.message : 'Falha ao executar script'}`)
