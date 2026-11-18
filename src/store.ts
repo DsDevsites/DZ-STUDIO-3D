@@ -11,6 +11,11 @@ export type SceneObject = {
   color: string
   visible: boolean
   dimensions: [number, number, number]
+  roughness?: number
+  metalness?: number
+  opacity?: number
+  transparent?: boolean
+  wireframe?: boolean
 }
 type Snapshot = { objects: SceneObject[]; selectedId: string | null }
 type Store = Snapshot & {
