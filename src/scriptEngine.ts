@@ -71,10 +71,10 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
     }
     const method = callee.property.name
     const args = node.arguments.map(read)
-    if (method.startsWith('create')) {
-      const requested = method.slice(6).toLowerCase()
-      const kind = (requested === 'cube' ? 'box' : requested) as PrimitiveKind
-      if (!primitiveKinds.includes(kind)) throw new Error(`Geometria não suportada: ${method}. Disponíveis: ${primitiveKinds.join(', ')} e Cube.`)
+    if (method === 'createCube' || method === 'createBox' || method === 'createSphere' || method === 'createCylinder' || method === 'createCone' || method === 'createTorus' || method === 'createPlane') {
+      const requested = method === 'createCube' ? 'box' : method.slice(6).toLowerCase()
+      const kind = requested as PrimitiveKind
+      if (!primitiveKinds.includes(kind)) throw new Error(`Geometria não suportada: ${method}. Disponíveis: createCube, createBox, createSphere, createCylinder, createCone, createTorus e createPlane.`)
       const p = (args[0] ?? {}) as Record<string, unknown>
       const radius = num(p.radius, 0.5)
       const dimensions: [number, number, number] = [
