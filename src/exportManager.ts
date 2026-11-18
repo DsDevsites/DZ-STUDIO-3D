@@ -18,7 +18,7 @@ function makeScene(objects: SceneObject[]) {
       case 'plane': geometry = new THREE.PlaneGeometry(w, d); break
       default: geometry = new THREE.BoxGeometry(w, h, d)
     }
-    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: item.color, roughness: .5, metalness: .15 }))
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: item.color, roughness: item.roughness ?? .5, metalness: item.metalness ?? .15, opacity: item.opacity ?? 1, transparent: item.transparent ?? false, wireframe: item.wireframe ?? false }))
     mesh.name = item.name
     mesh.position.set(...item.position)
     mesh.rotation.set(...item.rotation.map(THREE.MathUtils.degToRad) as [number,number,number])
