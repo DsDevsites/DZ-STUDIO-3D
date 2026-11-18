@@ -1,7 +1,7 @@
 import { parse } from '@babel/parser'
 import type { SceneObject, PrimitiveKind } from './store'
 
-const primitiveKinds: PrimitiveKind[] = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane']
+const primitiveKinds: PrimitiveKind[] = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'capsule', 'torusKnot', 'octahedron', 'tetrahedron', 'icosahedron', 'dodecahedron', 'ring', 'circle']
 const num = (v: unknown, fallback: number) => typeof v === 'number' && Number.isFinite(v) ? v : fallback
 const str = (v: unknown, fallback: string) => typeof v === 'string' ? v : fallback
 const vector = (value: unknown, fallback: [number, number, number], label: string): [number, number, number] => {
@@ -139,24 +139,26 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
     if (callee.type !== 'MemberExpression' || callee.computed || callee.object.type !== 'Identifier' || callee.object.name !== 'DZ' || callee.property.type !== 'Identifier') throw new Error('Apenas chamadas diretas DZ.<função>() são permitidas.')
     const method = callee.property.name
     const args = node.arguments.map(read)
-    if (['createCube','createBox','createSphere','createCylinder','createCone','createTorus','createPlane'].includes(method)) {
-      const requested = method === 'createCube' ? 'box' : method.slice(6).toLowerCase()
-      const kind = requested as PrimitiveKind
+    if (['createCube','createBox','createSphere','createCylinder','createCone','createTorus','createPlane','createCapsule','createTorusKnot','createOctahedron','createTetrahedron','createIcosahedron','createDodecahedron','createRing','createCircle'].includes(method)) {
+      const kindByMethod: Record<string, PrimitiveKind> = { createCube: 'box', createBox: 'box', createSphere: 'sphere', createCylinder: 'cylinder', createCone: 'cone', createTorus: 'torus', createPlane: 'plane', createCapsule: 'capsule', createTorusKnot: 'torusKnot', createOctahedron: 'octahedron', createTetrahedron: 'tetrahedron', createIcosahedron: 'icosahedron', createDodecahedron: 'dodecahedron', createRing: 'ring', createCircle: 'circle' }
+      const kind = kindByMethod[method]
       if (!primitiveKinds.includes(kind)) throw new Error('Geometria não suportada: ' + method)
       const p = (args[0] ?? {}) as Record<string, unknown>
       const radius = num(p.radius, 0.5)
-      const dimensions: [number,number,number] = [num(p.width, radius * 2), num(p.height, kind === 'sphere' ? radius * 2 : 1), num(p.depth, num(p.width, radius * 2))]
+      const dimensions: [number,number,number] = [num(p.width, radius * 2), num(p.height, ['sphere','octahedron','tetrahedron','icosahedron','dodecahedron','ring','circle'].includes(kind) ? radius * 2 : 1), num(p.depth, num(p.width, radius * 2))]
       if (dimensions.some(n => n <= 0 || n > 10000)) throw new Error('Dimensões devem ser maiores que zero e menores que 10.000.')
       const geometryOptions = {
         radiusTop: num(p.radiusTop, radius), radiusBottom: num(p.radiusBottom, radius),
         radialSegments: Math.round(num(p.radialSegments, 32)),
         tubularSegments: Math.round(num(p.tubularSegments, 48)),
         tube: num(p.tube, Math.max(0.02, radius * 0.12)),
+        innerRadius: num(p.innerRadius, radius * 0.55), outerRadius: num(p.outerRadius, radius),
+        detail: Math.round(num(p.detail, 0)), p: Math.round(num(p.p, 2)), q: Math.round(num(p.q, 3)),
         widthSegments: Math.round(num(p.widthSegments, 32)),
         heightSegments: Math.round(num(p.heightSegments, 24)),
       }
       for (const entry of Object.entries(geometryOptions)) {
-        if (!Number.isFinite(entry[1]) || entry[1] <= 0 || entry[1] > 256) throw new Error(entry[0] + ' deve estar entre 1 e 256.')
+        if (!Number.isFinite(entry[1]) || (['detail','p','q'].includes(entry[0]) ? entry[1] < 0 || entry[1] > 8 : entry[1] <= 0 || entry[1] > 256)) throw new Error(entry[0] + ' está fora do limite permitido.')
       }
       const object: SceneObject = {
         id: crypto.randomUUID(), name: str(p.name, 'Objeto ' + (created.size + 1)).slice(0,100), kind,
