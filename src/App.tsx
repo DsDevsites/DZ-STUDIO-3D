@@ -23,7 +23,7 @@ function Model({ object, selected, onSelect }: { object: SceneObject; selected: 
   if (!object.visible) return null
   return <mesh position={object.position} rotation={object.rotation.map(v => THREE.MathUtils.degToRad(v)) as [number, number, number]} scale={object.scale} onClick={(e) => { e.stopPropagation(); onSelect() }}>
     {geometry}
-    <meshStandardMaterial color={selected ? '#46b5ff' : object.color} roughness={.48} metalness={.18} />
+    <meshStandardMaterial color={selected ? '#46b5ff' : object.color} roughness={object.roughness ?? .48} metalness={object.metalness ?? .18} opacity={object.opacity ?? 1} transparent={object.transparent ?? false} wireframe={object.wireframe ?? false} />
     {selected && <lineSegments>
       <edgesGeometry args={[new THREE.BoxGeometry(...object.dimensions)]} />
       <lineBasicMaterial color="#8bd5ff" />
