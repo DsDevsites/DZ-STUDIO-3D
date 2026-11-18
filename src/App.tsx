@@ -12,11 +12,11 @@ import { exportScene } from './exportManager'
 function Model({ object, selected, onSelect }: { object: SceneObject; selected: boolean; onSelect: () => void }) {
   const geometry = useMemo(() => {
     switch (object.kind) {
-      case 'sphere': return <sphereGeometry args={[object.dimensions[0] / 2, 32, 24]} />
-      case 'cylinder': return <cylinderGeometry args={[object.dimensions[0] / 2, object.dimensions[0] / 2, object.dimensions[1], 32]} />
-      case 'cone': return <coneGeometry args={[object.dimensions[0] / 2, object.dimensions[1], 32]} />
-      case 'torus': return <torusGeometry args={[object.dimensions[0] / 2, Math.max(.06, object.dimensions[0] * .12), 16, 48]} />
-      case 'plane': return <planeGeometry args={[object.dimensions[0], object.dimensions[2]]} />
+      case 'sphere': return <sphereGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.widthSegments ?? 48, object.geometryOptions?.heightSegments ?? 32]} />
+      case 'cylinder': return <cylinderGeometry args={[object.geometryOptions?.radiusTop ?? object.dimensions[0] / 2, object.geometryOptions?.radiusBottom ?? object.dimensions[0] / 2, object.dimensions[1], object.geometryOptions?.radialSegments ?? 48]} />
+      case 'cone': return <coneGeometry args={[object.dimensions[0] / 2, object.dimensions[1], object.geometryOptions?.radialSegments ?? 48]} />
+      case 'torus': return <torusGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.tube ?? Math.max(.06, object.dimensions[0] * .12), 16, object.geometryOptions?.tubularSegments ?? 64]} />
+      case 'plane': return <planeGeometry args={[object.dimensions[0], object.dimensions[2], object.geometryOptions?.widthSegments ?? 1, object.geometryOptions?.heightSegments ?? 1]} />
       default: return <boxGeometry args={object.dimensions} />
     }
   }, [object.kind, object.dimensions])
