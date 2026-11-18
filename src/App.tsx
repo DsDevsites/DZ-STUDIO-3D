@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { Canvas } from '@react-three/fiber'
 import { Grid, OrbitControls } from '@react-three/drei'
@@ -74,6 +74,45 @@ function App() {
   const [showLeft, setShowLeft] = useState(true)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const editorRef = useRef<import('monaco-editor').editor.IStandaloneCodeEditor | null>(null)
+
+  const selectAllScript = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.focus()
+    const model = editor.getModel()
+    if (model) editor.setSelection(model.getFullModelRange())
+  }
+  const clearScript = () => {
+    if (!script.trim()) return
+    if (!window.confirm('Apagar todo o script atual?')) return
+    setScript('')
+    setOutput('Editor limpo. Cole ou escreva um novo script.')
+    editorRef.current?.focus()
+  }
+  const pasteScript = async () => {
+    try {
+      if (!navigator.clipboard?.readText) throw new Error('A colagem automática não está disponível neste navegador.')
+      const clipboardText = await navigator.clipboard.readText()
+      if (!clipboardText) {
+        setOutput('A área de transferência está vazia.')
+        setActiveTab('console')
+        return
+      }
+      const editor = editorRef.current
+      const selection = editor?.getSelection()
+      if (editor && selection) {
+        editor.executeEdits('dz-paste', [{ range: selection, text: clipboardText, forceMoveMarkers: true }])
+        editor.focus()
+      } else {
+        setScript(clipboardText)
+      }
+      setOutput('Script colado da área de transferência.')
+    } catch (error) {
+      setOutput(error instanceof Error ? error.message + ' Use o menu Colar do próprio teclado.' : 'Não foi possível acessar a área de transferência.')
+      setActiveTab('console')
+    }
+  }
 
   const run = () => {
     try {
@@ -153,9 +192,9 @@ function App() {
         <div className="editor-panel">
           <div className="editor-header">
             <div className="editor-tabs"><button className={activeTab === 'script' ? 'active' : ''} onClick={() => setActiveTab('script')}><Code2 size={15}/> SCRIPT EDITOR</button><button className={activeTab === 'console' ? 'active' : ''} onClick={() => setActiveTab('console')}>CONSOLE</button></div>
-            <div className="editor-actions"><span className="language-tag">JAVASCRIPT · DZ API</span><button className="run-small" onClick={run}><Play size={13} fill="currentColor"/> Executar</button></div>
+            <div className="editor-actions"><span className="language-tag">JAVASCRIPT · DZ API</span><button className="editor-tool" onClick={selectAllScript} title="Selecionar todo o script">Tudo</button><button className="editor-tool" onClick={() => void pasteScript()} title="Colar da área de transferência">Colar</button><button className="editor-tool clear-tool" onClick={clearScript} title="Apagar todo o script"><Trash2 size={13}/></button><button className="run-small" onClick={run}><Play size={13} fill="currentColor"/> Executar</button></div>
           </div>
-          {activeTab === 'script' ? <Editor height="100%" language="javascript" theme="vs-dark" value={script} onChange={v => setScript(v ?? '')} options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: 'on', scrollBeyondLastLine: false, automaticLayout: true, tabSize: 2, padding: { top: 12 }, wordWrap: 'on' }} /> : <div className="console-output"><span className={output.startsWith('Erro:') ? 'error-text' : 'success-text'}>●</span> {output}<button onClick={() => setActiveTab('script')}>Voltar ao editor</button></div>}
+          {activeTab === 'script' ? <div className="monaco-host"><Editor height="100%" language="javascript" theme="vs-dark" value={script} onMount={editor => { editorRef.current = editor }} onChange={v => setScript(v ?? '')} options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: 'on', scrollBeyondLastLine: false, automaticLayout: true, tabSize: 2, padding: { top: 12, bottom: 12 }, wordWrap: 'on', roundedSelection: true, scrollBeyondLastColumn: 2, fixedOverflowWidgets: true, suggestOnTriggerCharacters: true }} /></div> : <div className="console-output"><span className={output.startsWith('Erro:') ? 'error-text' : 'success-text'}>●</span> {output}<button onClick={() => setActiveTab('script')}>Voltar ao editor</button></div>}
         </div>
       </section>
       {showRight && <aside className="side-panel properties">
