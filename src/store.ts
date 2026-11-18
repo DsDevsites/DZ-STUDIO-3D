@@ -16,6 +16,7 @@ export type SceneObject = {
   opacity?: number
   transparent?: boolean
   wireframe?: boolean
+  geometryOptions?: { radiusTop: number; radiusBottom: number; radialSegments: number; tubularSegments: number; tube: number; widthSegments: number; heightSegments: number }
 }
 type Snapshot = { objects: SceneObject[]; selectedId: string | null }
 type Store = Snapshot & {
