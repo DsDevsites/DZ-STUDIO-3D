@@ -59,6 +59,7 @@ function App() {
   const setScript = useStudio(s => s.setScript)
   const output = useStudio(s => s.output)
   const setOutput = useStudio(s => s.setOutput)
+  const addObjects = useStudio(s => s.addObjects)
   const select = useStudio(s => s.select)
   const updateObject = useStudio(s => s.updateObject)
   const removeObject = useStudio(s => s.removeObject)
