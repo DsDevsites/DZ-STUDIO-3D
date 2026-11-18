@@ -16,6 +16,14 @@ function makeScene(objects: SceneObject[]) {
       case 'cone': geometry = new THREE.ConeGeometry(w / 2, h, item.geometryOptions?.radialSegments ?? 48); break
       case 'torus': geometry = new THREE.TorusGeometry(w / 2, item.geometryOptions?.tube ?? Math.max(.04, w * .1), 16, item.geometryOptions?.tubularSegments ?? 64); break
       case 'plane': geometry = new THREE.PlaneGeometry(w, d, item.geometryOptions?.widthSegments ?? 1, item.geometryOptions?.heightSegments ?? 1); break
+      case 'capsule': geometry = new THREE.CapsuleGeometry(w / 2, Math.max(0, h - w), item.geometryOptions?.radialSegments ?? 16, item.geometryOptions?.heightSegments ?? 8); break
+      case 'torusKnot': geometry = new THREE.TorusKnotGeometry(w / 2, item.geometryOptions?.tube ?? .12, item.geometryOptions?.tubularSegments ?? 96, item.geometryOptions?.radialSegments ?? 12, item.geometryOptions?.p ?? 2, item.geometryOptions?.q ?? 3); break
+      case 'octahedron': geometry = new THREE.OctahedronGeometry(w / 2, item.geometryOptions?.detail ?? 0); break
+      case 'tetrahedron': geometry = new THREE.TetrahedronGeometry(w / 2, item.geometryOptions?.detail ?? 0); break
+      case 'icosahedron': geometry = new THREE.IcosahedronGeometry(w / 2, item.geometryOptions?.detail ?? 0); break
+      case 'dodecahedron': geometry = new THREE.DodecahedronGeometry(w / 2, item.geometryOptions?.detail ?? 0); break
+      case 'ring': geometry = new THREE.RingGeometry(item.geometryOptions?.innerRadius ?? w * .25, item.geometryOptions?.outerRadius ?? w / 2, item.geometryOptions?.radialSegments ?? 48); break
+      case 'circle': geometry = new THREE.CircleGeometry(w / 2, item.geometryOptions?.radialSegments ?? 48); break
       default: geometry = new THREE.BoxGeometry(w, h, d)
     }
     const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: item.color, roughness: item.roughness ?? .5, metalness: item.metalness ?? .15, opacity: item.opacity ?? 1, transparent: item.transparent ?? false, wireframe: item.wireframe ?? false }))
