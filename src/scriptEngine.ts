@@ -36,7 +36,9 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
   if (source.length > 200_000) throw new Error('Script excede o limite de 200 KB.')
   const ast = parse(source, { sourceType: 'module' })
   if (ast.program.body.length > 5000) throw new Error('Script excede o limite de 5.000 instruções.')
-  const vars = new Map<string, unknown>()
+  const scopes: Map<string, unknown>[] = [new Map()]
+  const findScope = (name: string) => [...scopes].reverse().find(scope => scope.has(name))
+  const getVariable = (name: string) => { const scope = findScope(name); if (!scope) throw new Error('Identificador não permitido: ' + name); return scope.get(name) }
   const staged = existing.map(o => ({ ...o, position: [...o.position] as [number,number,number], rotation: [...o.rotation] as [number,number,number], scale: [...o.scale] as [number,number,number], dimensions: [...o.dimensions] as [number,number,number] }))
   const created = new Set<string>()
   let iterations = 0
@@ -48,8 +50,7 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
       case 'StringLiteral': case 'NumericLiteral': case 'BooleanLiteral': return node.value
       case 'NullLiteral': return null
       case 'Identifier':
-        if (vars.has(node.name)) return vars.get(node.name)
-        throw new Error('Identificador não permitido: ' + node.name)
+        return getVariable(node.name)
       case 'ObjectExpression': {
         const out: Record<string, unknown> = {}
         for (const p of node.properties) {
@@ -233,15 +234,17 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
   const update = (node: any) => {
     if (node.type === 'UpdateExpression' && node.argument.type === 'Identifier') {
       const name = node.argument.name
-      if (!vars.has(name)) throw new Error('Variável não declarada: ' + name)
-      const old = num(vars.get(name),0), next = old + (node.operator === '++' ? 1 : node.operator === '--' ? -1 : 0)
+      const scope = findScope(name)
+      if (!scope) throw new Error('Variável não declarada: ' + name)
+      const old = num(scope.get(name),0), next = old + (node.operator === '++' ? 1 : node.operator === '--' ? -1 : 0)
       if (!['++','--'].includes(node.operator)) throw new Error('Atualização não permitida.')
-      vars.set(name,next); return node.prefix ? next : old
+      scope.set(name,next); return node.prefix ? next : old
     }
     if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier') {
       const name = node.left.name
-      if (!vars.has(name)) throw new Error('Variável não declarada: ' + name)
-      const old = vars.get(name), right = read(node.right)
+      const scope = findScope(name)
+      if (!scope) throw new Error('Variável não declarada: ' + name)
+      const old = scope.get(name), right = read(node.right)
       let next: any
       if (node.operator === '=') next = right
       else if (node.operator === '+=') next = typeof old === 'string' ? String(old) + String(right) : num(old,0) + num(right,0)
@@ -249,7 +252,7 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
       else if (node.operator === '*=') next = num(old,0) * num(right,0)
       else if (node.operator === '/=') { if (num(right,0) === 0) throw new Error('Divisão por zero.'); next = num(old,0) / num(right,0) }
       else throw new Error('Atribuição não permitida.')
-      vars.set(name,next); return next
+      scope.set(name,next); return next
     }
     throw new Error('Atualização de variável inválida.')
   }
@@ -262,8 +265,9 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
         if (statement.kind === 'var') throw new Error('Use const ou let.')
         for (const declaration of statement.declarations) {
           if (declaration.id.type !== 'Identifier' || !declaration.init) throw new Error('Declaração de variável inválida.')
-          if (vars.has(declaration.id.name)) throw new Error('Variável duplicada: ' + declaration.id.name)
-          vars.set(declaration.id.name, read(declaration.init))
+          const currentScope = scopes[scopes.length - 1]
+          if (currentScope.has(declaration.id.name)) throw new Error('Variável duplicada no mesmo bloco: ' + declaration.id.name)
+          currentScope.set(declaration.id.name, read(declaration.init))
         }
         return
       case 'ExpressionStatement':
@@ -271,13 +275,18 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
         else if (['UpdateExpression','AssignmentExpression'].includes(statement.expression.type)) update(statement.expression)
         else read(statement.expression)
         return
-      case 'BlockStatement':
-        for (const child of statement.body) execute(child)
+      case 'BlockStatement': {
+        scopes.push(new Map())
+        try { for (const child of statement.body) execute(child) }
+        finally { scopes.pop() }
         return
+      }
       case 'IfStatement':
         execute(truthy(read(statement.test)) ? statement.consequent : statement.alternate ?? { type: 'EmptyStatement' })
         return
       case 'ForStatement': {
+        scopes.push(new Map())
+        try {
         if (statement.init) {
           if (statement.init.type === 'VariableDeclaration') execute(statement.init)
           else if (statement.init.type === 'AssignmentExpression') update(statement.init)
@@ -290,6 +299,7 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
           execute(statement.body)
           if (statement.update) update(statement.update)
         }
+        } finally { scopes.pop() }
         return
       }
       case 'EmptyStatement': return
