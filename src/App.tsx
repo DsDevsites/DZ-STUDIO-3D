@@ -17,6 +17,14 @@ function Model({ object, selected, onSelect }: { object: SceneObject; selected: 
       case 'cone': return <coneGeometry args={[object.dimensions[0] / 2, object.dimensions[1], object.geometryOptions?.radialSegments ?? 48]} />
       case 'torus': return <torusGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.tube ?? Math.max(.06, object.dimensions[0] * .12), 16, object.geometryOptions?.tubularSegments ?? 64]} />
       case 'plane': return <planeGeometry args={[object.dimensions[0], object.dimensions[2], object.geometryOptions?.widthSegments ?? 1, object.geometryOptions?.heightSegments ?? 1]} />
+      case 'capsule': return <capsuleGeometry args={[object.dimensions[0] / 2, Math.max(0, object.dimensions[1] - object.dimensions[0]), object.geometryOptions?.radialSegments ?? 16, object.geometryOptions?.heightSegments ?? 8]} />
+      case 'torusKnot': return <torusKnotGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.tube ?? 0.12, object.geometryOptions?.tubularSegments ?? 96, object.geometryOptions?.radialSegments ?? 12, object.geometryOptions?.p ?? 2, object.geometryOptions?.q ?? 3]} />
+      case 'octahedron': return <octahedronGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.detail ?? 0]} />
+      case 'tetrahedron': return <tetrahedronGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.detail ?? 0]} />
+      case 'icosahedron': return <icosahedronGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.detail ?? 0]} />
+      case 'dodecahedron': return <dodecahedronGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.detail ?? 0]} />
+      case 'ring': return <ringGeometry args={[object.geometryOptions?.innerRadius ?? object.dimensions[0] * .25, object.geometryOptions?.outerRadius ?? object.dimensions[0] / 2, object.geometryOptions?.radialSegments ?? 48]} />
+      case 'circle': return <circleGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.radialSegments ?? 48]} />
       default: return <boxGeometry args={object.dimensions} />
     }
   }, [object.kind, object.dimensions])
