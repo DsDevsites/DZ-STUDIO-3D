@@ -11,11 +11,11 @@ function makeScene(objects: SceneObject[]) {
     let geometry: THREE.BufferGeometry
     const [w,h,d] = item.dimensions
     switch (item.kind) {
-      case 'sphere': geometry = new THREE.SphereGeometry(w / 2, 32, 24); break
-      case 'cylinder': geometry = new THREE.CylinderGeometry(w / 2, w / 2, h, 32); break
-      case 'cone': geometry = new THREE.ConeGeometry(w / 2, h, 32); break
-      case 'torus': geometry = new THREE.TorusGeometry(w / 2, Math.max(.04, w * .1), 16, 48); break
-      case 'plane': geometry = new THREE.PlaneGeometry(w, d); break
+      case 'sphere': geometry = new THREE.SphereGeometry(w / 2, item.geometryOptions?.widthSegments ?? 48, item.geometryOptions?.heightSegments ?? 32); break
+      case 'cylinder': geometry = new THREE.CylinderGeometry(item.geometryOptions?.radiusTop ?? w / 2, item.geometryOptions?.radiusBottom ?? w / 2, h, item.geometryOptions?.radialSegments ?? 48); break
+      case 'cone': geometry = new THREE.ConeGeometry(w / 2, h, item.geometryOptions?.radialSegments ?? 48); break
+      case 'torus': geometry = new THREE.TorusGeometry(w / 2, item.geometryOptions?.tube ?? Math.max(.04, w * .1), 16, item.geometryOptions?.tubularSegments ?? 64); break
+      case 'plane': geometry = new THREE.PlaneGeometry(w, d, item.geometryOptions?.widthSegments ?? 1, item.geometryOptions?.heightSegments ?? 1); break
       default: geometry = new THREE.BoxGeometry(w, h, d)
     }
     const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: item.color, roughness: item.roughness ?? .5, metalness: item.metalness ?? .15, opacity: item.opacity ?? 1, transparent: item.transparent ?? false, wireframe: item.wireframe ?? false }))
