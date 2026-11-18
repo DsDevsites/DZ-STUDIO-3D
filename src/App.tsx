@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { Canvas } from '@react-three/fiber'
-import { Grid, OrbitControls, TransformControls } from '@react-three/drei'
-import { Box, CircleHelp, Code2, Download, Eye, EyeOff, FilePlus2, FolderOpen, Layers3, Maximize2, MousePointer2, Play, RotateCcw, Save, Settings2, Trash2, Undo2, Redo2, BoxSelect, ChevronDown } from 'lucide-react'
+import { Grid, OrbitControls } from '@react-three/drei'
+import { Box, CircleHelp, Code2, Eye, EyeOff, FilePlus2, FolderOpen, Layers3, Maximize2, MousePointer2, Play, Save, Settings2, Trash2, Undo2, Redo2, BoxSelect, ChevronDown, Copy } from 'lucide-react'
 import { useStudio, type SceneObject } from './store'
 import { runStudioScript } from './scriptEngine'
 import * as THREE from 'three'
+import { saveProject, loadProject } from './projectStorage'
+import { exportScene } from './exportManager'
 
 function Model({ object, selected, onSelect }: { object: SceneObject; selected: boolean; onSelect: () => void }) {
   const geometry = useMemo(() => {
@@ -57,15 +59,20 @@ function App() {
   const setScript = useStudio(s => s.setScript)
   const output = useStudio(s => s.output)
   const setOutput = useStudio(s => s.setOutput)
-  const addObjects = useStudio(s => s.addObjects)
   const select = useStudio(s => s.select)
   const updateObject = useStudio(s => s.updateObject)
   const removeObject = useStudio(s => s.removeObject)
   const clear = useStudio(s => s.clear)
+  const duplicateObject = useStudio(s => s.duplicateObject)
+  const undo = useStudio(s => s.undo)
+  const redo = useStudio(s => s.redo)
+  const canUndo = useStudio(s => s.past.length > 0)
+  const canRedo = useStudio(s => s.future.length > 0)
   const [activeTab, setActiveTab] = useState<'script' | 'console'>('script')
   const [showRight, setShowRight] = useState(true)
   const [showLeft, setShowLeft] = useState(true)
   const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const run = () => {
     try {
@@ -78,27 +85,36 @@ function App() {
       setActiveTab('console')
     }
   }
-  const save = () => {
-    localStorage.setItem('dz-studio-project', JSON.stringify({ objects, script, version: 1 }))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1800)
-  }
-  const open = () => {
-    const raw = localStorage.getItem('dz-studio-project')
-    if (!raw) { setOutput('Nenhum projeto salvo neste navegador.'); setActiveTab('console'); return }
+  const save = async () => {
     try {
-      const project = JSON.parse(raw)
-      addObjects(project.objects ?? [])
-      setScript(project.script ?? '')
-      setOutput('Projeto local carregado com sucesso.')
-      setActiveTab('console')
-    } catch { setOutput('Não foi possível abrir o projeto salvo.') }
+      setBusy(true)
+      await saveProject({ name: 'Meu projeto', objects, script, version: 1, updatedAt: new Date().toISOString() })
+      setSaved(true)
+      setOutput('Projeto salvo no armazenamento local do navegador (IndexedDB).')
+    } catch (error) {
+      setOutput('Falha ao salvar: ' + (error instanceof Error ? error.message : 'erro desconhecido'))
+    } finally { setBusy(false); setActiveTab('console'); window.setTimeout(() => setSaved(false), 1800) }
   }
-  const exportJson = () => {
-    const blob = new Blob([JSON.stringify({ name: 'DZ Studio Scene', objects }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'dz-studio-scene.json'; a.click()
-    URL.revokeObjectURL(url)
+  const open = async () => {
+    try {
+      setBusy(true)
+      const project = await loadProject('Meu projeto')
+      if (!project) { setOutput('Nenhum projeto salvo neste navegador.'); return }
+      useStudio.getState().replaceScene(project.objects ?? [])
+      setScript(project.script ?? '')
+      setOutput('Projeto local carregado do IndexedDB.')
+    } catch (error) {
+      setOutput('Não foi possível abrir o projeto: ' + (error instanceof Error ? error.message : 'erro desconhecido'))
+    } finally { setBusy(false); setActiveTab('console') }
+  }
+  const handleExport = async (format: 'glb' | 'gltf' | 'obj' | 'stl') => {
+    try {
+      setBusy(true)
+      await exportScene(objects, format)
+      setOutput('Exportação ' + format.toUpperCase() + ' concluída.')
+    } catch (error) {
+      setOutput('Falha na exportação: ' + (error instanceof Error ? error.message : 'erro desconhecido'))
+    } finally { setBusy(false); setActiveTab('console') }
   }
 
   return <main className="app-shell">
@@ -108,13 +124,13 @@ function App() {
       <div className="project-name"><span className="project-status"/><span>Projeto sem título</span><ChevronDown size={13}/></div>
       <div className="top-actions">
         <button className="tool-button" onClick={() => { clear(); setOutput('Nova cena criada.'); }} title="Nova cena"><FilePlus2 size={16}/><span>Novo</span></button>
-        <button className="tool-button" onClick={open} title="Abrir projeto local"><FolderOpen size={16}/><span>Abrir</span></button>
-        <button className="tool-button" onClick={save} title="Salvar projeto"><Save size={16}/><span>{saved ? 'Salvo!' : 'Salvar'}</span></button>
+        <button className="tool-button" onClick={open} disabled={busy} title="Abrir projeto local"><FolderOpen size={16}/><span>Abrir</span></button>
+        <button className="tool-button" onClick={save} disabled={busy} title="Salvar projeto"><Save size={16}/><span>{saved ? 'Salvo!' : 'Salvar'}</span></button>
         <span className="top-separator"/>
-        <button className="tool-button icon-only" disabled title="Desfazer (em breve)"><Undo2 size={16}/></button>
-        <button className="tool-button icon-only" disabled title="Refazer (em breve)"><Redo2 size={16}/></button>
+        <button className="tool-button icon-only" onClick={undo} disabled={!canUndo} title="Desfazer"><Undo2 size={16}/></button>
+        <button className="tool-button icon-only" onClick={redo} disabled={!canRedo} title="Refazer"><Redo2 size={16}/></button>
         <button className="primary-button" onClick={run}><Play size={15} fill="currentColor"/> Executar script</button>
-        <button className="tool-button" onClick={exportJson}><Download size={16}/><span>Exportar cena</span></button>
+        <select className="export-select" defaultValue="" disabled={busy || objects.length === 0} onChange={e => { if (e.target.value) void handleExport(e.target.value as "glb" | "gltf" | "obj" | "stl"); e.target.value = "" }} aria-label="Exportar modelo"><option value="" disabled>Exportar…</option><option value="glb">Exportar GLB</option><option value="gltf">Exportar GLTF</option><option value="obj">Exportar OBJ</option><option value="stl">Exportar STL</option></select>
         <button className="tool-button icon-only" title="Configurações"><Settings2 size={17}/></button>
       </div>
     </header>
@@ -124,7 +140,7 @@ function App() {
         <div className="scene-label"><ChevronDown size={13}/> CENA PRINCIPAL <span>{objects.length}</span></div>
         <div className="object-list">
           {objects.map(o => <div key={o.id} className={`object-row ${selectedId === o.id ? 'selected' : ''}`} onClick={() => select(o.id)}>
-            <BoxSelect size={15}/><span>{o.name}</span><button onClick={e => { e.stopPropagation(); updateObject(o.id, { visible: !o.visible }) }} title={o.visible ? 'Ocultar' : 'Mostrar'}>{o.visible ? <Eye size={13}/> : <EyeOff size={13}/>}</button><button onClick={e => { e.stopPropagation(); removeObject(o.id) }} title="Excluir"><Trash2 size={13}/></button>
+            <BoxSelect size={15}/><span>{o.name}</span><button onClick={e => { e.stopPropagation(); updateObject(o.id, { visible: !o.visible }) }} title={o.visible ? 'Ocultar' : 'Mostrar'}>{o.visible ? <Eye size={13}/> : <EyeOff size={13}/>}</button><button onClick={e => { e.stopPropagation(); duplicateObject(o.id) }} title="Duplicar"><Copy size={13}/></button><button onClick={e => { e.stopPropagation(); removeObject(o.id) }} title="Excluir"><Trash2 size={13}/></button>
           </div>)}
           {objects.length === 0 && <div className="empty-state">Sua cena está vazia.<br/>Crie um objeto pelo editor de scripts.</div>}
         </div>
