@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'capsule' | 'torusKnot' | 'octahedron' | 'tetrahedron' | 'icosahedron' | 'dodecahedron' | 'ring' | 'circle'
+export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'capsule' | 'torusKnot' | 'octahedron' | 'tetrahedron' | 'icosahedron' | 'dodecahedron' | 'ring' | 'circle' | 'roundedBox'
 export type SceneObject = {
   id: string
   name: string
