@@ -6,11 +6,16 @@ import { Box, CircleHelp, Code2, Eye, EyeOff, FilePlus2, FolderOpen, Layers3, Ma
 import { useStudio, type SceneObject } from './store'
 import { runStudioScript } from './scriptEngine'
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { saveProject, loadProject } from './projectStorage'
 import { exportScene } from './exportManager'
 
 function Model({ object, selected, onSelect }: { object: SceneObject; selected: boolean; onSelect: () => void }) {
   const geometry = useMemo(() => {
+    if (object.kind === 'roundedBox') {
+      const radius = Math.min(object.geometryOptions?.cornerRadius ?? 0.12, ...object.dimensions.map(v => v * 0.45))
+      return <primitive object={new RoundedBoxGeometry(...object.dimensions, Math.max(1, Math.min(8, object.geometryOptions?.bevelSegments ?? 4)), Math.max(0.001, radius))} attach="geometry" />
+    }
     switch (object.kind) {
       case 'sphere': return <sphereGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.widthSegments ?? 48, object.geometryOptions?.heightSegments ?? 32]} />
       case 'cylinder': return <cylinderGeometry args={[object.geometryOptions?.radiusTop ?? object.dimensions[0] / 2, object.geometryOptions?.radiusBottom ?? object.dimensions[0] / 2, object.dimensions[1], object.geometryOptions?.radialSegments ?? 48]} />
@@ -27,7 +32,7 @@ function Model({ object, selected, onSelect }: { object: SceneObject; selected: 
       case 'circle': return <circleGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.radialSegments ?? 48]} />
       default: return <boxGeometry args={object.dimensions} />
     }
-  }, [object.kind, object.dimensions])
+  }, [object.kind, object.dimensions, object.geometryOptions])
   if (!object.visible) return null
   return <mesh position={object.position} rotation={object.rotation.map(v => THREE.MathUtils.degToRad(v)) as [number, number, number]} scale={object.scale} onClick={(e) => { e.stopPropagation(); onSelect() }}>
     {geometry}
