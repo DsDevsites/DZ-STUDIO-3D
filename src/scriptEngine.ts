@@ -139,8 +139,8 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
     if (callee.type !== 'MemberExpression' || callee.computed || callee.object.type !== 'Identifier' || callee.object.name !== 'DZ' || callee.property.type !== 'Identifier') throw new Error('Apenas chamadas diretas DZ.<função>() são permitidas.')
     const method = callee.property.name
     const args = node.arguments.map(read)
-    if (['createCube','createBox','createSphere','createCylinder','createCone','createTorus','createPlane','createCapsule','createTorusKnot','createOctahedron','createTetrahedron','createIcosahedron','createDodecahedron','createRing','createCircle'].includes(method)) {
-      const kindByMethod: Record<string, PrimitiveKind> = { createCube: 'box', createBox: 'box', createSphere: 'sphere', createCylinder: 'cylinder', createCone: 'cone', createTorus: 'torus', createPlane: 'plane', createCapsule: 'capsule', createTorusKnot: 'torusKnot', createOctahedron: 'octahedron', createTetrahedron: 'tetrahedron', createIcosahedron: 'icosahedron', createDodecahedron: 'dodecahedron', createRing: 'ring', createCircle: 'circle' }
+    if (['createCube','createBox','createSphere','createCylinder','createCone','createTorus','createPlane','createCapsule','createTorusKnot','createOctahedron','createTetrahedron','createIcosahedron','createDodecahedron','createRing','createCircle','createRoundedBox'].includes(method)) {
+      const kindByMethod: Record<string, PrimitiveKind> = { createCube: 'box', createBox: 'box', createSphere: 'sphere', createCylinder: 'cylinder', createCone: 'cone', createTorus: 'torus', createPlane: 'plane', createCapsule: 'capsule', createTorusKnot: 'torusKnot', createOctahedron: 'octahedron', createTetrahedron: 'tetrahedron', createIcosahedron: 'icosahedron', createDodecahedron: 'dodecahedron', createRing: 'ring', createCircle: 'circle', createRoundedBox: 'roundedBox' }
       const kind = kindByMethod[method]
       if (!primitiveKinds.includes(kind)) throw new Error('Geometria não suportada: ' + method)
       const p = (args[0] ?? {}) as Record<string, unknown>
@@ -148,6 +148,7 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
       const dimensions: [number,number,number] = [num(p.width, radius * 2), num(p.height, ['sphere','octahedron','tetrahedron','icosahedron','dodecahedron','ring','circle'].includes(kind) ? radius * 2 : 1), num(p.depth, num(p.width, radius * 2))]
       if (dimensions.some(n => n <= 0 || n > 10000)) throw new Error('Dimensões devem ser maiores que zero e menores que 10.000.')
       const geometryOptions = {
+        cornerRadius: num(p.cornerRadius, 0.12), bevelSegments: Math.round(num(p.bevelSegments, 4)),
         radiusTop: num(p.radiusTop, radius), radiusBottom: num(p.radiusBottom, radius),
         radialSegments: Math.round(num(p.radialSegments, 32)),
         tubularSegments: Math.round(num(p.tubularSegments, 48)),
@@ -158,7 +159,7 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
         heightSegments: Math.round(num(p.heightSegments, 24)),
       }
       for (const entry of Object.entries(geometryOptions)) {
-        if (!Number.isFinite(entry[1]) || (['detail','p','q'].includes(entry[0]) ? entry[1] < 0 || entry[1] > 8 : entry[1] <= 0 || entry[1] > 256)) throw new Error(entry[0] + ' está fora do limite permitido.')
+        if (!Number.isFinite(entry[1]) || (['detail','p','q'].includes(entry[0]) ? entry[1] < 0 || entry[1] > 8 : entry[0] === 'cornerRadius' ? entry[1] < 0 || entry[1] > 1000 : entry[1] <= 0 || entry[1] > 256)) throw new Error(entry[0] + ' está fora do limite permitido.')
       }
       const object: SceneObject = {
         id: crypto.randomUUID(), name: str(p.name, 'Objeto ' + (created.size + 1)).slice(0,100), kind,
