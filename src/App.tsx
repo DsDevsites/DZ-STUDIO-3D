@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { Canvas } from '@react-three/fiber'
-import { Grid, OrbitControls } from '@react-three/drei'
+import { Grid, OrbitControls, TransformControls } from '@react-three/drei'
 import { Box, CircleHelp, Code2, Eye, EyeOff, FilePlus2, FolderOpen, Layers3, Maximize2, MousePointer2, Play, Save, Settings2, Trash2, Undo2, Redo2, BoxSelect, ChevronDown, Copy } from 'lucide-react'
 import { useStudio, type SceneObject } from './store'
 import { runStudioScript } from './scriptEngine'
@@ -10,7 +10,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { saveProject, loadProject } from './projectStorage'
 import { exportScene } from './exportManager'
 
-function Model({ object, selected, onSelect }: { object: SceneObject; selected: boolean; onSelect: () => void }) {
+function Model({ object, selected, onSelect, transformMode, onTransformChange }: { object: SceneObject; selected: boolean; onSelect: () => void; transformMode: 'translate' | 'rotate' | 'scale'; onTransformChange: (position: [number,number,number], rotation: [number,number,number], scale: [number,number,number]) => void }) {\n  const meshRef = useRef<THREE.Mesh>(null)
   const geometry = useMemo(() => {
     if (object.kind === 'roundedBox') {
       const radius = Math.min(object.geometryOptions?.cornerRadius ?? 0.12, ...object.dimensions.map(v => v * 0.45))
@@ -34,30 +34,47 @@ function Model({ object, selected, onSelect }: { object: SceneObject; selected: 
     }
   }, [object.kind, object.dimensions, object.geometryOptions])
   if (!object.visible) return null
-  return <mesh position={object.position} rotation={object.rotation.map(v => THREE.MathUtils.degToRad(v)) as [number, number, number]} scale={object.scale} onClick={(e) => { e.stopPropagation(); onSelect() }}>
+  const mesh = <mesh ref={meshRef} position={object.position} rotation={object.rotation.map(v => THREE.MathUtils.degToRad(v)) as [number, number, number]} scale={object.scale} castShadow receiveShadow onClick={(e) => { e.stopPropagation(); onSelect() }}>
     {geometry}
-    <meshStandardMaterial color={selected ? '#46b5ff' : object.color} roughness={object.roughness ?? .48} metalness={object.metalness ?? .18} opacity={object.opacity ?? 1} transparent={object.transparent ?? false} wireframe={object.wireframe ?? false} />
+    <meshStandardMaterial color={selected ? '#46b5ff' : object.color} roughness={object.roughness ?? .48} metalness={object.metalness ?? .18} opacity={object.opacity ?? 1} transparent={object.transparent ?? false} wireframe={object.wireframe ?? false} flatShading={false} />
     {selected && <lineSegments>
       <edgesGeometry args={[new THREE.BoxGeometry(...object.dimensions)]} />
       <lineBasicMaterial color="#8bd5ff" />
     </lineSegments>}
   </mesh>
+  if (!selected) return mesh
+  return <TransformControls mode={transformMode} translationSnap={0.25} rotationSnap={Math.PI / 12} scaleSnap={0.1} onMouseUp={() => {
+    const current = meshRef.current
+    if (!current) return
+    onTransformChange(
+      [current.position.x, current.position.y, current.position.z],
+      [THREE.MathUtils.radToDeg(current.rotation.x), THREE.MathUtils.radToDeg(current.rotation.y), THREE.MathUtils.radToDeg(current.rotation.z)],
+      [current.scale.x, current.scale.y, current.scale.z]
+    )
+  }}>{mesh}</TransformControls>
 }
 
 function Viewport() {
   const objects = useStudio(s => s.objects)
   const selectedId = useStudio(s => s.selectedId)
   const select = useStudio(s => s.select)
+  const updateObject = useStudio(s => s.updateObject)
+  const [transformMode, setTransformMode] = useState<'translate' | 'rotate' | 'scale'>('translate')
   return <div className="viewport">
-    <div className="viewport-top"><span><span className="live-dot" /> CENA 3D <span className="muted">/ PERSPECTIVA</span></span><span className="viewport-tools"><span><MousePointer2 size={14}/> Selecionar</span><span><Maximize2 size={14}/> Enquadrar</span></span></div>
+    <div className="viewport-top"><span><span className="live-dot" /> CENA 3D <span className="muted">/ PERSPECTIVA</span></span><span className="viewport-tools">
+      <button className={transformMode === 'translate' ? 'active' : ''} onClick={() => setTransformMode('translate')} title="Mover (G)">Mover</button>
+      <button className={transformMode === 'rotate' ? 'active' : ''} onClick={() => setTransformMode('rotate')} title="Rotacionar (R)">Girar</button>
+      <button className={transformMode === 'scale' ? 'active' : ''} onClick={() => setTransformMode('scale')} title="Escalar (S)">Escala</button>
+    </span></div>
     <Canvas camera={{ position: [5, 4, 6], fov: 45 }} onPointerMissed={() => select(null)} shadows>
       <color attach="background" args={['#0b1019']} />
-      <ambientLight intensity={1.1} />
-      <directionalLight position={[5, 8, 5]} intensity={2.1} castShadow />
+      <ambientLight intensity={0.8} />
+      <hemisphereLight args={['#d8eaff', '#172235', 0.7]} />
+      <directionalLight position={[5, 8, 5]} intensity={2.3} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+      <directionalLight position={[-4, 3, -5]} intensity={0.65} color="#5b9acb" />
       <Grid args={[30, 30]} cellSize={1} cellThickness={.55} cellColor="#263548" sectionSize={5} sectionThickness={1} sectionColor="#38516b" fadeDistance={30} infiniteGrid />
-      {objects.map(o => <Model key={o.id} object={o} selected={o.id === selectedId} onSelect={() => select(o.id)} />)}
+      {objects.map(o => <Model key={o.id} object={o} selected={o.id === selectedId} onSelect={() => select(o.id)} transformMode={transformMode} onTransformChange={(position, rotation, scale) => updateObject(o.id, { position, rotation, scale })} />)}
       <OrbitControls makeDefault />
-    </Canvas>
     <div className="axis-widget"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
     <div className="viewport-hint">Arraste para orbitar · Scroll para zoom · Clique em um objeto para selecionar</div>
     <div className="object-count"><Box size={13}/> {objects.length} {objects.length === 1 ? 'objeto' : 'objetos'}</div>
