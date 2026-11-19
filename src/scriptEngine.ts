@@ -160,7 +160,7 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
         heightSegments: Math.round(num(p.heightSegments, 24)), bevelThickness: num(p.bevelThickness, 0.04), bevelSize: num(p.bevelSize, 0.03), bevelEnabled: p.bevelEnabled === false ? 0 : 1,
       }
       for (const entry of Object.entries(geometryOptions)) {
-        if (!Number.isFinite(entry[1]) || (['detail','p','q'].includes(entry[0]) ? entry[1] < 0 || entry[1] > 8 : entry[0] === 'cornerRadius' ? entry[1] < 0 || entry[1] > 1000 : entry[1] <= 0 || entry[1] > 256)) throw new Error(entry[0] + ' está fora do limite permitido.')
+        if (!Number.isFinite(entry[1]) || (['detail','p','q'].includes(entry[0]) ? entry[1] < 0 || entry[1] > 8 : entry[0] === 'bevelEnabled' ? (entry[1] !== 0 && entry[1] !== 1) : entry[0] === 'cornerRadius' ? entry[1] < 0 || entry[1] > 1000 : entry[1] <= 0 || entry[1] > 256)) throw new Error(entry[0] + ' está fora do limite permitido.')
       }
       const object: SceneObject = {
         id: crypto.randomUUID(), name: str(p.name, 'Objeto ' + (created.size + 1)).slice(0,100), kind,
