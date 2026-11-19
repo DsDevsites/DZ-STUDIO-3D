@@ -1,4 +1,4 @@
-import * as THREE from 'three'
+import * as THREE from 'three'\nimport { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter.js'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
@@ -10,7 +10,7 @@ function makeScene(objects: SceneObject[]) {
     if (!item.visible) continue
     let geometry: THREE.BufferGeometry
     const [w,h,d] = item.dimensions
-    switch (item.kind) {
+    switch (item.kind) {\n      case 'extrude': { const shape=new THREE.Shape(); const pts=item.shapePoints??[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]]; shape.moveTo(...pts[0]); pts.slice(1).forEach(p=>shape.lineTo(...p)); shape.closePath(); geometry=new THREE.ExtrudeGeometry(shape,{depth:h,bevelEnabled:(item.geometryOptions?.bevelEnabled??1)===1,bevelThickness:item.geometryOptions?.bevelThickness??.04,bevelSize:item.geometryOptions?.bevelSize??.03,bevelSegments:item.geometryOptions?.bevelSegments??3}); break }\n      case 'lathe': geometry=new THREE.LatheGeometry((item.lathePoints??[[.2,-.5],[.5,0],[.2,.5]]).map(p=>new THREE.Vector2(p[0],p[1])),item.geometryOptions?.radialSegments??48); break\n      case 'roundedBox': geometry=new RoundedBoxGeometry(w,h,d,item.geometryOptions?.bevelSegments??4,item.geometryOptions?.cornerRadius??.12); break
       case 'sphere': geometry = new THREE.SphereGeometry(w / 2, item.geometryOptions?.widthSegments ?? 48, item.geometryOptions?.heightSegments ?? 32); break
       case 'cylinder': geometry = new THREE.CylinderGeometry(item.geometryOptions?.radiusTop ?? w / 2, item.geometryOptions?.radiusBottom ?? w / 2, h, item.geometryOptions?.radialSegments ?? 48); break
       case 'cone': geometry = new THREE.ConeGeometry(w / 2, h, item.geometryOptions?.radialSegments ?? 48); break
