@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'capsule' | 'torusKnot' | 'octahedron' | 'tetrahedron' | 'icosahedron' | 'dodecahedron' | 'ring' | 'circle' | 'roundedBox' | 'extrude' | 'lathe'
+export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'capsule' | 'torusKnot' | 'octahedron' | 'tetrahedron' | 'icosahedron' | 'dodecahedron' | 'ring' | 'circle' | 'roundedBox' | 'extrude' | 'lathe' | 'tube' | 'customMesh'
 export type SceneObject = {
   id: string
   name: string
@@ -19,6 +19,9 @@ export type SceneObject = {
   geometryOptions?: Record<string, number>
   shapePoints?: [number, number][]
   lathePoints?: [number, number][]
+  pathPoints?: [number, number, number][]
+  meshVertices?: [number, number, number][]
+  meshIndices?: number[]
 }
 type Snapshot = { objects: SceneObject[]; selectedId: string | null }
 type Store = Snapshot & {
@@ -44,7 +47,7 @@ const starter: SceneObject = {
   color: '#2388ff', visible: true, dimensions: [1, 1, 1],
 }
 const clone = (s: Snapshot): Snapshot => ({
-  objects: s.objects.map(o => ({ ...o, position: [...o.position] as [number,number,number], rotation: [...o.rotation] as [number,number,number], scale: [...o.scale] as [number,number,number], dimensions: [...o.dimensions] as [number,number,number], shapePoints: o.shapePoints?.map(p => [...p] as [number,number]), lathePoints: o.lathePoints?.map(p => [...p] as [number,number]) })),
+  objects: s.objects.map(o => ({ ...o, position: [...o.position] as [number,number,number], rotation: [...o.rotation] as [number,number,number], scale: [...o.scale] as [number,number,number], dimensions: [...o.dimensions] as [number,number,number], shapePoints: o.shapePoints?.map(p => [...p] as [number,number]), lathePoints: o.lathePoints?.map(p => [...p] as [number,number]), pathPoints: o.pathPoints?.map(p => [...p] as [number,number,number]), meshVertices: o.meshVertices?.map(p => [...p] as [number,number,number]), meshIndices: o.meshIndices ? [...o.meshIndices] : undefined })),
   selectedId: s.selectedId,
 })
 const remember = (state: Store): Pick<Store, 'past' | 'future'> => ({
