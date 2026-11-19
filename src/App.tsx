@@ -78,6 +78,7 @@ function Viewport() {
       <Grid args={[30, 30]} cellSize={1} cellThickness={.55} cellColor="#263548" sectionSize={5} sectionThickness={1} sectionColor="#38516b" fadeDistance={30} infiniteGrid />
       {objects.map(o => <Model key={o.id} object={o} selected={o.id === selectedId} onSelect={() => select(o.id)} transformMode={transformMode} onTransformChange={(position, rotation, scale) => updateObject(o.id, { position, rotation, scale })} />)}
       <OrbitControls makeDefault />
+    </Canvas>
     <div className="axis-widget"><span className="axis-x">X</span><span className="axis-y">Y</span><span className="axis-z">Z</span></div>
     <div className="viewport-hint">Arraste para orbitar · Scroll para zoom · Clique em um objeto para selecionar</div>
     <div className="object-count"><Box size={13}/> {objects.length} {objects.length === 1 ? 'objeto' : 'objetos'}</div>
