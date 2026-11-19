@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'capsule' | 'torusKnot' | 'octahedron' | 'tetrahedron' | 'icosahedron' | 'dodecahedron' | 'ring' | 'circle' | 'roundedBox'
+export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'capsule' | 'torusKnot' | 'octahedron' | 'tetrahedron' | 'icosahedron' | 'dodecahedron' | 'ring' | 'circle' | 'roundedBox' | 'extrude' | 'lathe'
 export type SceneObject = {
   id: string
   name: string
@@ -17,6 +17,8 @@ export type SceneObject = {
   transparent?: boolean
   wireframe?: boolean
   geometryOptions?: Record<string, number>
+  shapePoints?: [number, number][]
+  lathePoints?: [number, number][]
 }
 type Snapshot = { objects: SceneObject[]; selectedId: string | null }
 type Store = Snapshot & {
