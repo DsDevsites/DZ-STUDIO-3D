@@ -15,7 +15,7 @@ function Model({ object, selected, onSelect, transformMode, onTransformChange }:
   const geometry = useMemo(() => {
     if (object.kind === 'extrude' && object.shapePoints?.length) { const shape=new THREE.Shape(); shape.moveTo(...object.shapePoints[0]); object.shapePoints.slice(1).forEach(p=>shape.lineTo(...p)); shape.closePath(); return <primitive object={new THREE.ExtrudeGeometry(shape,{depth:object.dimensions[1],bevelEnabled:(object.geometryOptions?.bevelEnabled??1)===1,bevelThickness:object.geometryOptions?.bevelThickness??.04,bevelSize:object.geometryOptions?.bevelSize??.03,bevelSegments:Math.max(1,Math.min(8,object.geometryOptions?.bevelSegments??3)),curveSegments:12})} attach="geometry" /> }
     if (object.kind === 'lathe' && object.lathePoints?.length) return <primitive object={new THREE.LatheGeometry(object.lathePoints.map(p=>new THREE.Vector2(p[0],p[1])),object.geometryOptions?.radialSegments??48)} attach="geometry" />
-    if (object.kind === 'tube' && object.pathPoints?.length >= 2) {
+    if (object.kind === 'tube' && object.pathPoints && object.pathPoints.length >= 2) {
       const curve = new THREE.CatmullRomCurve3(object.pathPoints.map(p => new THREE.Vector3(...p)))
       return <primitive object={new THREE.TubeGeometry(curve, object.geometryOptions?.tubularSegments ?? 64, object.geometryOptions?.tube ?? 0.08, object.geometryOptions?.radialSegments ?? 12, false)} attach="geometry" />
     }
