@@ -1,7 +1,7 @@
 import { parse } from '@babel/parser'
 import type { SceneObject, PrimitiveKind } from './store'
 
-const primitiveKinds: PrimitiveKind[] = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'capsule', 'torusKnot', 'octahedron', 'tetrahedron', 'icosahedron', 'dodecahedron', 'ring', 'circle', 'roundedBox', 'extrude', 'lathe']
+const primitiveKinds: PrimitiveKind[] = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'capsule', 'torusKnot', 'octahedron', 'tetrahedron', 'icosahedron', 'dodecahedron', 'ring', 'circle', 'roundedBox', 'extrude', 'lathe', 'tube', 'customMesh']
 const num = (v: unknown, fallback: number) => typeof v === 'number' && Number.isFinite(v) ? v : fallback
 const str = (v: unknown, fallback: string) => typeof v === 'string' ? v : fallback
 const vector = (value: unknown, fallback: [number, number, number], label: string): [number, number, number] => {
@@ -127,6 +127,13 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
   }
 
   const checkedPoints = (value: unknown, min: number, max: number, label: string): [number,number][] => { if (!Array.isArray(value) || value.length < min || value.length > max) throw new Error(label + ` exige de ${min} a ${max} pontos 2D.`); return value.map((p,i) => { if (!Array.isArray(p) || p.length !== 2 || !Number.isFinite(p[0]) || !Number.isFinite(p[1]) || Math.abs(p[0]) > 1000 || Math.abs(p[1]) > 1000) throw new Error(label + ` possui ponto inválido ${i+1}.`); return [p[0],p[1]] }) }
+  const checked3DPoints = (value: unknown, min: number, max: number, label: string): [number,number,number][] => {
+    if (!Array.isArray(value) || value.length < min || value.length > max) throw new Error(label + ` exige de ${min} a ${max} pontos 3D.`)
+    return value.map((p,i) => {
+      if (!Array.isArray(p) || p.length !== 3 || p.some(v => typeof v !== 'number' || !Number.isFinite(v) || Math.abs(v) > 1000)) throw new Error(label + ` possui ponto 3D inválido ${i+1}.`)
+      return [p[0],p[1],p[2]]
+    })
+  }
   const getObject = (value: unknown): SceneObject => {
     if (!value || typeof value !== 'object' || !('id' in value)) throw new Error('A função espera um objeto criado pela DZ API.')
     const object = value as SceneObject
@@ -140,8 +147,8 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
     if (callee.type !== 'MemberExpression' || callee.computed || callee.object.type !== 'Identifier' || callee.object.name !== 'DZ' || callee.property.type !== 'Identifier') throw new Error('Apenas chamadas diretas DZ.<função>() são permitidas.')
     const method = callee.property.name
     const args = node.arguments.map(read)
-    if (['createCube','createBox','createSphere','createCylinder','createCone','createTorus','createPlane','createCapsule','createTorusKnot','createOctahedron','createTetrahedron','createIcosahedron','createDodecahedron','createRing','createCircle','createRoundedBox','createExtrude','createLathe'].includes(method)) {
-      const kindByMethod: Record<string, PrimitiveKind> = { createCube: 'box', createBox: 'box', createSphere: 'sphere', createCylinder: 'cylinder', createCone: 'cone', createTorus: 'torus', createPlane: 'plane', createCapsule: 'capsule', createTorusKnot: 'torusKnot', createOctahedron: 'octahedron', createTetrahedron: 'tetrahedron', createIcosahedron: 'icosahedron', createDodecahedron: 'dodecahedron', createRing: 'ring', createCircle: 'circle', createRoundedBox: 'roundedBox', createExtrude: 'extrude', createLathe: 'lathe' }
+    if (['createCube','createBox','createSphere','createCylinder','createCone','createTorus','createPlane','createCapsule','createTorusKnot','createOctahedron','createTetrahedron','createIcosahedron','createDodecahedron','createRing','createCircle','createRoundedBox','createExtrude','createShape','createLathe','createTube','createCustomMesh'].includes(method)) {
+      const kindByMethod: Record<string, PrimitiveKind> = { createCube: 'box', createBox: 'box', createSphere: 'sphere', createCylinder: 'cylinder', createCone: 'cone', createTorus: 'torus', createPlane: 'plane', createCapsule: 'capsule', createTorusKnot: 'torusKnot', createOctahedron: 'octahedron', createTetrahedron: 'tetrahedron', createIcosahedron: 'icosahedron', createDodecahedron: 'dodecahedron', createRing: 'ring', createCircle: 'circle', createRoundedBox: 'roundedBox', createExtrude: 'extrude', createShape: 'extrude', createLathe: 'lathe', createTube: 'tube', createCustomMesh: 'customMesh' }
       const kind = kindByMethod[method]
       if (!primitiveKinds.includes(kind)) throw new Error('Geometria não suportada: ' + method)
       const p = (args[0] ?? {}) as Record<string, unknown>
@@ -157,7 +164,7 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
         innerRadius: num(p.innerRadius, radius * 0.55), outerRadius: num(p.outerRadius, radius),
         detail: Math.round(num(p.detail, 0)), p: Math.round(num(p.p, 2)), q: Math.round(num(p.q, 3)),
         widthSegments: Math.round(num(p.widthSegments, 32)),
-        heightSegments: Math.round(num(p.heightSegments, 24)), bevelThickness: num(p.bevelThickness, 0.04), bevelSize: num(p.bevelSize, 0.03), bevelEnabled: p.bevelEnabled === false ? 0 : 1,
+        heightSegments: Math.round(num(p.heightSegments, 24)), curveSegments: Math.round(num(p.curveSegments, 16)), bevelThickness: num(p.bevelThickness, 0.04), bevelSize: num(p.bevelSize, 0.03), bevelEnabled: p.bevelEnabled === false ? 0 : 1,
       }
       for (const entry of Object.entries(geometryOptions)) {
         if (!Number.isFinite(entry[1]) || (['detail','p','q'].includes(entry[0]) ? entry[1] < 0 || entry[1] > 8 : entry[0] === 'bevelEnabled' ? (entry[1] !== 0 && entry[1] !== 1) : entry[0] === 'cornerRadius' ? entry[1] < 0 || entry[1] > 1000 : entry[1] <= 0 || entry[1] > 256)) throw new Error(entry[0] + ' está fora do limite permitido.')
@@ -166,7 +173,18 @@ export function runStudioScript(source: string, existing: SceneObject[] = []): S
         id: crypto.randomUUID(), name: str(p.name, 'Objeto ' + (created.size + 1)).slice(0,100), kind,
         position: vector(p.position,[0,0,0],'Posição'), rotation: vector(p.rotation,[0,0,0],'Rotação'), scale: vector(p.scale,[1,1,1],'Escala'),
         color: validColor(p.color,'#2388ff'), visible: p.visible !== false, dimensions,
-        geometryOptions, shapePoints: kind === 'extrude' ? checkedPoints(p.points,3,128,'createExtrude') : undefined, lathePoints: kind === 'lathe' ? checkedPoints(p.points,2,128,'createLathe') : undefined,
+        geometryOptions, shapePoints: kind === 'extrude' ? checkedPoints(p.points,3,128,method) : undefined,
+        lathePoints: kind === 'lathe' ? checkedPoints(p.points,2,128,'createLathe') : undefined,
+        pathPoints: kind === 'tube' ? checked3DPoints(p.points,2,128,'createTube') : undefined,
+        meshVertices: kind === 'customMesh' ? checked3DPoints(p.vertices,3,5000,'createCustomMesh') : undefined,
+        meshIndices: kind === 'customMesh' ? (() => {
+          if (!Array.isArray(p.indices) || p.indices.length < 3 || p.indices.length > 30000 || p.indices.length % 3 !== 0) throw new Error('createCustomMesh: indices deve conter triângulos (múltiplo de 3), até 30.000 índices.')
+          const vertices = p.vertices as unknown[]
+          return p.indices.map((index: unknown) => {
+            if (!Number.isInteger(index) || (index as number) < 0 || (index as number) >= vertices.length) throw new Error('createCustomMesh: índice de vértice inválido.')
+            return index as number
+          })
+        })() : undefined,
         roughness: clamp01(p.roughness,0.48,'Rugosidade'), metalness: clamp01(p.metalness,0.18,'Metallicidade'),
         opacity: clamp01(p.opacity,1,'Opacidade'), transparent: p.transparent === true || num(p.opacity,1) < 1,
         wireframe: p.wireframe === true,
