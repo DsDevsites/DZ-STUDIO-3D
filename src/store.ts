@@ -44,7 +44,7 @@ const starter: SceneObject = {
   color: '#2388ff', visible: true, dimensions: [1, 1, 1],
 }
 const clone = (s: Snapshot): Snapshot => ({
-  objects: s.objects.map(o => ({ ...o, position: [...o.position] as [number,number,number], rotation: [...o.rotation] as [number,number,number], scale: [...o.scale] as [number,number,number], dimensions: [...o.dimensions] as [number,number,number] })),
+  objects: s.objects.map(o => ({ ...o, position: [...o.position] as [number,number,number], rotation: [...o.rotation] as [number,number,number], scale: [...o.scale] as [number,number,number], dimensions: [...o.dimensions] as [number,number,number], shapePoints: o.shapePoints?.map(p => [...p] as [number,number]), lathePoints: o.lathePoints?.map(p => [...p] as [number,number]) })),
   selectedId: s.selectedId,
 })
 const remember = (state: Store): Pick<Store, 'past' | 'future'> => ({
