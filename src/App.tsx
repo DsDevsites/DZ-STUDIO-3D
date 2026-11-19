@@ -15,6 +15,18 @@ function Model({ object, selected, onSelect, transformMode, onTransformChange }:
   const geometry = useMemo(() => {
     if (object.kind === 'extrude' && object.shapePoints?.length) { const shape=new THREE.Shape(); shape.moveTo(...object.shapePoints[0]); object.shapePoints.slice(1).forEach(p=>shape.lineTo(...p)); shape.closePath(); return <primitive object={new THREE.ExtrudeGeometry(shape,{depth:object.dimensions[1],bevelEnabled:(object.geometryOptions?.bevelEnabled??1)===1,bevelThickness:object.geometryOptions?.bevelThickness??.04,bevelSize:object.geometryOptions?.bevelSize??.03,bevelSegments:Math.max(1,Math.min(8,object.geometryOptions?.bevelSegments??3)),curveSegments:12})} attach="geometry" /> }
     if (object.kind === 'lathe' && object.lathePoints?.length) return <primitive object={new THREE.LatheGeometry(object.lathePoints.map(p=>new THREE.Vector2(p[0],p[1])),object.geometryOptions?.radialSegments??48)} attach="geometry" />
+    if (object.kind === 'tube' && object.pathPoints?.length >= 2) {
+      const curve = new THREE.CatmullRomCurve3(object.pathPoints.map(p => new THREE.Vector3(...p)))
+      return <primitive object={new THREE.TubeGeometry(curve, object.geometryOptions?.tubularSegments ?? 64, object.geometryOptions?.tube ?? 0.08, object.geometryOptions?.radialSegments ?? 12, false)} attach="geometry" />
+    }
+    if (object.kind === 'customMesh' && object.meshVertices?.length && object.meshIndices?.length) {
+      const custom = new THREE.BufferGeometry()
+      custom.setFromPoints(object.meshVertices.map(p => new THREE.Vector3(...p)))
+      custom.setIndex(object.meshIndices)
+      custom.computeVertexNormals()
+      custom.computeBoundingSphere()
+      return <primitive object={custom} attach="geometry" />
+    }
     if (object.kind === 'roundedBox') {
       const radius = Math.min(object.geometryOptions?.cornerRadius ?? 0.12, ...object.dimensions.map(v => v * 0.45))
       return <primitive object={new RoundedBoxGeometry(...object.dimensions, Math.max(1, Math.min(8, object.geometryOptions?.bevelSegments ?? 4)), Math.max(0.001, radius))} attach="geometry" />
@@ -35,7 +47,7 @@ function Model({ object, selected, onSelect, transformMode, onTransformChange }:
       case 'circle': return <circleGeometry args={[object.dimensions[0] / 2, object.geometryOptions?.radialSegments ?? 48]} />
       default: return <boxGeometry args={object.dimensions} />
     }
-  }, [object.kind, object.dimensions, object.geometryOptions])
+  }, [object.kind, object.dimensions, object.geometryOptions, object.shapePoints, object.lathePoints, object.pathPoints, object.meshVertices, object.meshIndices])
   if (!object.visible) return null
   const mesh = <mesh ref={meshRef} position={object.position} rotation={object.rotation.map(v => THREE.MathUtils.degToRad(v)) as [number, number, number]} scale={object.scale} castShadow receiveShadow onClick={(e) => { e.stopPropagation(); onSelect() }}>
     {geometry}
