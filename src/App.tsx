@@ -12,7 +12,7 @@ import { exportScene } from './exportManager'
 
 function Model({ object, selected, onSelect, transformMode, onTransformChange }: { object: SceneObject; selected: boolean; onSelect: () => void; transformMode: 'translate' | 'rotate' | 'scale'; onTransformChange: (position: [number,number,number], rotation: [number,number,number], scale: [number,number,number]) => void }) {\n  const meshRef = useRef<THREE.Mesh>(null)
   const geometry = useMemo(() => {
-    if (object.kind === 'roundedBox') {
+    if (object.kind === 'extrude' && object.shapePoints?.length) { const shape=new THREE.Shape(); shape.moveTo(...object.shapePoints[0]); object.shapePoints.slice(1).forEach(p=>shape.lineTo(...p)); shape.closePath(); return <primitive object={new THREE.ExtrudeGeometry(shape,{depth:object.dimensions[1],bevelEnabled:(object.geometryOptions?.bevelEnabled??1)===1,bevelThickness:object.geometryOptions?.bevelThickness??.04,bevelSize:object.geometryOptions?.bevelSize??.03,bevelSegments:Math.max(1,Math.min(8,object.geometryOptions?.bevelSegments??3)),curveSegments:12})} attach="geometry" /> }\n    if (object.kind === 'lathe' && object.lathePoints?.length) return <primitive object={new THREE.LatheGeometry(object.lathePoints.map(p=>new THREE.Vector2(p[0],p[1])),object.geometryOptions?.radialSegments??48)} attach="geometry" />\n    if (object.kind === 'roundedBox') {
       const radius = Math.min(object.geometryOptions?.cornerRadius ?? 0.12, ...object.dimensions.map(v => v * 0.45))
       return <primitive object={new RoundedBoxGeometry(...object.dimensions, Math.max(1, Math.min(8, object.geometryOptions?.bevelSegments ?? 4)), Math.max(0.001, radius))} attach="geometry" />
     }
