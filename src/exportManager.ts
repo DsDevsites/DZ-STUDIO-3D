@@ -14,6 +14,20 @@ function makeScene(objects: SceneObject[]) {
     switch (item.kind) {
       case 'extrude': { const shape=new THREE.Shape(); const pts=item.shapePoints??[[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5]]; shape.moveTo(...pts[0]); pts.slice(1).forEach(p=>shape.lineTo(...p)); shape.closePath(); geometry=new THREE.ExtrudeGeometry(shape,{depth:h,bevelEnabled:(item.geometryOptions?.bevelEnabled??1)===1,bevelThickness:item.geometryOptions?.bevelThickness??.04,bevelSize:item.geometryOptions?.bevelSize??.03,bevelSegments:item.geometryOptions?.bevelSegments??3}); break }
       case 'lathe': geometry=new THREE.LatheGeometry((item.lathePoints??[[.2,-.5],[.5,0],[.2,.5]]).map(p=>new THREE.Vector2(p[0],p[1])),item.geometryOptions?.radialSegments??48); break
+      case 'tube': {
+        const points = item.pathPoints ?? [[0,0,0],[0,1,0],[1,1,0]]
+        const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)))
+        geometry = new THREE.TubeGeometry(curve,item.geometryOptions?.tubularSegments??64,item.geometryOptions?.tube??.08,item.geometryOptions?.radialSegments??12,false)
+        break
+      }
+      case 'customMesh': {
+        geometry = new THREE.BufferGeometry()
+        geometry.setFromPoints((item.meshVertices??[]).map(p=>new THREE.Vector3(...p)))
+        geometry.setIndex(item.meshIndices??[])
+        geometry.computeVertexNormals()
+        geometry.computeBoundingSphere()
+        break
+      }
       case 'roundedBox': geometry=new RoundedBoxGeometry(w,h,d,item.geometryOptions?.bevelSegments??4,item.geometryOptions?.cornerRadius??.12); break
       case 'sphere': geometry = new THREE.SphereGeometry(w / 2, item.geometryOptions?.widthSegments ?? 48, item.geometryOptions?.heightSegments ?? 32); break
       case 'cylinder': geometry = new THREE.CylinderGeometry(item.geometryOptions?.radiusTop ?? w / 2, item.geometryOptions?.radiusBottom ?? w / 2, h, item.geometryOptions?.radialSegments ?? 48); break
